@@ -12,6 +12,13 @@
         "pct_off_high": 29.2,
         "price_to_book": 2.32,
         "trough": false
+      },
+      {
+        "date": "2026-05-28",
+        "price": 109.42,
+        "pct_off_high": 29.1,
+        "price_to_book": 2.32,
+        "trough": false
       }
     ]
   }

@@ -19,6 +19,13 @@
         "pct_off_high": 44.0,
         "price_to_book": 1.98,
         "trough": false
+      },
+      {
+        "date": "2026-05-28",
+        "price": 44.375,
+        "pct_off_high": 44.2,
+        "price_to_book": 1.98,
+        "trough": false
       }
     ]
   },
@@ -42,6 +49,13 @@
         "pct_off_high": 29.3,
         "price_to_book": 2.31,
         "trough": false
+      },
+      {
+        "date": "2026-05-28",
+        "price": 108.95,
+        "pct_off_high": 29.4,
+        "price_to_book": 2.31,
+        "trough": false
       }
     ]
   },
@@ -62,6 +76,13 @@
       {
         "date": "2026-05-28",
         "price": 15.525,
+        "pct_off_high": 51.5,
+        "price_to_book": 1.47,
+        "trough": true
+      },
+      {
+        "date": "2026-05-28",
+        "price": 15.5289,
         "pct_off_high": 51.5,
         "price_to_book": 1.47,
         "trough": true

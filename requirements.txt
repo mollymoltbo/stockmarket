@@ -1,0 +1,4 @@
+yfinance
+pandas
+requests
+markdown        # build_site.py renders the Claude verdict to HTML (optional; falls back to <pre>)

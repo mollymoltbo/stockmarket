@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Trough Scanner</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>🔻 Trough Scanner</h1>
+    <div id="summary" class="summary">Loading…</div>
+  </header>
+
+  <main>
+    <section id="verdict-section" hidden>
+      <h2>Claude verdict</h2>
+      <div id="verdict-meta" class="meta"></div>
+      <div id="verdict" class="verdict"></div>
+    </section>
+
+    <section id="candidates-section">
+      <h2>Candidates <span id="cand-count" class="count"></span></h2>
+      <div id="candidates" class="cards"></div>
+    </section>
+
+    <section id="watchlist-section">
+      <h2>Watchlist <span id="wl-count" class="count"></span></h2>
+      <div id="watchlist" class="wl"></div>
+    </section>
+  </main>
+
+  <footer>
+    <span id="generated"></span> ·
+    deterministic screen (Nasdaq + yfinance), Claude only on troughs
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

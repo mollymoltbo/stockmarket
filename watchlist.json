@@ -1,0 +1,18 @@
+{
+  "XYL": {
+    "name": "Xylem Inc.",
+    "sector": "Industrials",
+    "first_seen": "2026-05-28",
+    "last_seen": "2026-05-28",
+    "ever_trough": false,
+    "history": [
+      {
+        "date": "2026-05-28",
+        "price": 109.3,
+        "pct_off_high": 29.2,
+        "price_to_book": 2.32,
+        "trough": false
+      }
+    ]
+  }
+}

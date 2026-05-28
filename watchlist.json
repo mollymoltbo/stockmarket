@@ -1,4 +1,20 @@
 {
+  "PYPL": {
+    "name": "PayPal Holdings, Inc.",
+    "sector": "Financial Services",
+    "first_seen": "2026-05-28",
+    "last_seen": "2026-05-28",
+    "ever_trough": false,
+    "history": [
+      {
+        "date": "2026-05-28",
+        "price": 44.505,
+        "pct_off_high": 44.0,
+        "price_to_book": 1.98,
+        "trough": false
+      }
+    ]
+  },
   "XYL": {
     "name": "Xylem Inc.",
     "sector": "Industrials",
@@ -8,17 +24,26 @@
     "history": [
       {
         "date": "2026-05-28",
-        "price": 109.3,
-        "pct_off_high": 29.2,
-        "price_to_book": 2.32,
+        "price": 108.99,
+        "pct_off_high": 29.4,
+        "price_to_book": 2.31,
         "trough": false
-      },
+      }
+    ]
+  },
+  "LI": {
+    "name": "Li Auto Inc.",
+    "sector": "Consumer Cyclical",
+    "first_seen": "2026-05-28",
+    "last_seen": "2026-05-28",
+    "ever_trough": true,
+    "history": [
       {
         "date": "2026-05-28",
-        "price": 109.42,
-        "pct_off_high": 29.1,
-        "price_to_book": 2.32,
-        "trough": false
+        "price": 15.495,
+        "pct_off_high": 51.6,
+        "price_to_book": 1.47,
+        "trough": true
       }
     ]
   }

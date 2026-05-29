@@ -48,6 +48,14 @@ def _send(body: str, *, title: str, tags: str, prio: str) -> bool:
         return False
 
 
+# Per-strategy ntfy tag (emoji) + whether a high-conviction hit is high-priority.
+STRATEGY_NTFY = {
+    "Trough":   {"emoji": "🔻", "tag": "rotating_light"},
+    "Momentum": {"emoji": "🚀", "tag": "rocket"},
+}
+DEFAULT_TAG = "chart_with_upwards_trend"
+
+
 def _n(v, nd=2, suffix=""):
     return "N/A" if v is None else f"{float(v):.{nd}f}{suffix}"
 
@@ -55,16 +63,19 @@ def _n(v, nd=2, suffix=""):
 def _candidate_body(c: dict, sector: str, date: str) -> str:
     ev = "N/A (neg)" if not c.get("ev_ebitda") else _n(c["ev_ebitda"], 1)
     fpe = "N/A" if not c.get("forward_pe") else _n(c["forward_pe"], 1)
+    tags = c.get("tags", [])
     lines = [
-        f"{sector} · {date}",
+        f"{sector} · {date} · {'+'.join(tags) if tags else 'candidate'}",
         f"${_n(c['price'])} · {_n(c.get('pct_off_high'), 1, '%')} off high · ${c.get('market_cap_bn')}bn cap",
         f"P/B {_n(c.get('price_to_book'))} · Fwd P/E {fpe} · EV/EBITDA {ev}",
         f"D/E {_n(c.get('debt_to_equity'), 0, '%')} · Current {_n(c.get('current_ratio'))}",
     ]
-    if c.get("trough_reasons"):
-        lines.append("🔻 " + "; ".join(c["trough_reasons"]))
-    if c.get("signals"):
-        lines.append("✓ " + "; ".join(c["signals"]))
+    # One line per strategy: high-conviction reasons take priority, else signals.
+    for name, r in (c.get("strategies") or {}).items():
+        em = STRATEGY_NTFY.get(name, {}).get("emoji", "•")
+        detail = r.get("conviction_reasons") or r.get("signals")
+        if detail:
+            lines.append(f"{em} {name}: " + "; ".join(detail))
     return "\n".join(lines)
 
 
@@ -79,20 +90,25 @@ def main(result_path: str) -> int:
                    title=f"Scan: {sector} — 0 hits", tags="heavy_minus_sign", prio="default")
         return 0 if ok else 1
 
-    # Troughs first, then by score — most important notifications arrive last
-    # so they sit at the top of the phone's notification stack.
-    cands.sort(key=lambda c: (c.get("trough", False), c.get("score", 0)))
+    # High-conviction alerts first, then by score — most important notifications
+    # arrive last so they sit at the top of the phone's notification stack.
+    cands.sort(key=lambda c: (bool(c.get("alerts")), c.get("score", 0)))
     sent = 0
     for c in cands:
-        trough = c.get("trough")
+        alerts = c.get("alerts", [])          # strategies flagging it high-conviction
+        tags = c.get("tags", [])
         stars = "★" * int(c.get("score", 0))
-        title = f"{c['symbol']} {c.get('name', '')} {stars}".strip()
-        if trough:
-            title = f"TROUGH: {title}"
+        if alerts:
+            title = f"{'/'.join(a.upper() for a in alerts)}: {c['symbol']} {c.get('name','')} {stars}"
+            ntfy_tag = STRATEGY_NTFY.get(alerts[0], {}).get("tag", DEFAULT_TAG)
+            prio = "high"
+        else:
+            label = f" [{'+'.join(tags)}]" if tags else ""
+            title = f"{c['symbol']} {c.get('name','')}{label} {stars}"
+            ntfy_tag = DEFAULT_TAG
+            prio = "default"
         ok = _send(_candidate_body(c, sector, date),
-                   title=title,
-                   tags="rotating_light" if trough else "chart_with_upwards_trend",
-                   prio="high" if trough else "default")
+                   title=title.strip(), tags=ntfy_tag, prio=prio)
         sent += int(ok)
     print(f"  ntfy: {sent}/{len(cands)} candidate messages sent", file=sys.stderr)
     return 0 if sent == len(cands) else 1

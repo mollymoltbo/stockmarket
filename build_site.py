@@ -85,7 +85,8 @@ def build(result_path: str, watchlist_path: str) -> dict:
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "scan": {k: result.get(k) for k in
                  ("sector", "date", "scanned", "n_candidates", "n_trough",
-                  "should_analyze", "watchlist_size", "trough_symbols")},
+                  "n_momentum", "should_analyze", "watchlist_size",
+                  "trough_symbols", "momentum_symbols", "by_strategy")},
         "candidates": result.get("candidates", []),
         "watchlist": wl_out,
         "verdict": latest_verdict(),

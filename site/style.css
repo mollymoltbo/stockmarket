@@ -26,6 +26,7 @@ h2 { font-size: 16px; margin: 28px 0 12px; color: var(--muted); font-weight: 600
 .summary { color: var(--muted); font-size: 14px; }
 .summary b { color: var(--text); }
 .summary .trough { color: var(--trough); font-weight: 700; }
+.summary .momentum { color: var(--accent); font-weight: 700; }
 footer { color: var(--muted); font-size: 12px; padding: 30px 16px 40px; }
 
 /* Verdict */
@@ -50,17 +51,25 @@ footer { color: var(--muted); font-size: 12px; padding: 30px 16px 40px; }
   padding: 14px 16px;
 }
 .card.is-trough { border-color: var(--trough); }
+.card.is-momentum { border-color: var(--accent); }
 .card .top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .card .sym { font-size: 18px; font-weight: 700; }
 .card .nm { color: var(--muted); font-size: 13px; }
 .card .stars { color: var(--warn); letter-spacing: 1px; font-size: 13px; }
-.badge { display: inline-block; background: var(--trough); color: #fff; font-size: 11px;
-  font-weight: 700; padding: 2px 8px; border-radius: 20px; margin-top: 6px; }
+.badges { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px; }
+.badge { display: inline-block; color: #fff; font-size: 11px; font-weight: 700;
+  padding: 2px 8px; border-radius: 20px; }
+.badge.trough { background: var(--trough); }
+.badge.momentum { background: var(--accent); }
+.badge.other { background: var(--muted); }
+.chip { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 20px;
+  background: var(--panel-2); border: 1px solid var(--border); color: var(--muted); }
 .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 14px; margin: 12px 0 6px; }
 .grid div { font-size: 13px; display: flex; justify-content: space-between; }
 .grid .k { color: var(--muted); }
 .sig { font-size: 12px; color: var(--muted); margin-top: 6px; }
-.sig .reasons { color: var(--trough); }
+.sig.is-hc.trough { color: var(--trough); }
+.sig.is-hc.momentum { color: var(--accent); }
 
 /* Watchlist */
 .wl { display: grid; gap: 8px; }

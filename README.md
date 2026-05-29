@@ -35,7 +35,8 @@ handful of real troughs reach Claude (the one rate-limited resource).
 
 ## Files
 - `nasdaq_screen.py` — Stage 1: Nasdaq sector screener (the universe source)
-- `scan.py`        — Stage 2: yfinance fetch + trough detection + watchlist
+- `scan.py`        — Stage 2: yfinance fetch + strategy registry + watchlist
+- `notify.py`      — one ntfy message per candidate (tagged by strategy)
 - `build_site.py`  — assemble `site/data.json` (scan + watchlist + verdict)
 - `site/`          — static dashboard (index.html, app.js, style.css)
 - `run_scan.sh`    — cron orchestrator: scan → git → publish → ntfy → conditional Claude
@@ -43,6 +44,27 @@ handful of real troughs reach Claude (the one rate-limited resource).
 - `routine_prompt.md` — Claude routine prompt
 - `.env.example`   — secrets template (copy to .env, never commit)
 - `requirements.txt`
+
+## Strategies (one fetch, many lenses)
+The yfinance fetch is the only expensive step, so every strategy is evaluated on
+the *same* fetched data — adding one is near-free. Each is an entry in `scan.py`'s
+`STRATEGIES` registry returning a uniform result (match / score / signals /
+high-conviction / reasons). A name is a tracked candidate if **any** strategy
+matches, and is tagged with all that did (a name can be both).
+
+- **🔻 Trough** — the original value lens: ≥25% off high, near/below book,
+  survivable debt, depressed earnings (the Micron pattern). High-conviction hits
+  **fire the Claude routine**.
+- **🚀 Momentum** — the opposite lens: within 15% of the 52w high, above the
+  200-day, and actually growing; ignores valuation/balance sheet. High-conviction
+  = a breakout (at the highs, stacked above 50/200-day, on a volume/growth surge).
+  This catches DELL-type earnings breakouts that Trough rejects by design.
+  Momentum is **screen + notify + dashboard only** — it does *not* fire Claude
+  (the routine prompt is trough-specific).
+
+Both run on the same daily weekday-rotation universe, so Momentum is
+sector-delayed (a mover is only caught on its sector's day). Giving Momentum its
+own daily all-sector "movers" universe is a future option.
 
 ## The dashboard (zone.ee)
 A static site browses everything ntfy can't: candidate metric cards, each
@@ -141,5 +163,16 @@ READS it for each name's trajectory. Two machines, one shared file → git bridg
 
 ## Tuning
 - `nasdaq_screen.py`: NASDAQ_SECTORS, MIN_MARKET_CAP, MIN_PRICE, SECTOR_LIMIT
-- `scan.py`: THRESHOLDS, TROUGH_SIGNALS, SECTOR_INDUSTRY_KEYWORDS,
+- `scan.py`: THRESHOLDS + TROUGH_SIGNALS (Trough), MOMENTUM_GATES +
+  MOMENTUM_SIGNALS + MOMENTUM_BREAKOUT (Momentum), STRATEGIES registry
+  (enable/disable, `fires_claude`), SECTOR_INDUSTRY_KEYWORDS,
   WATCHLIST_MAX_AGE_DAYS, WEEKDAY_SECTOR
+
+## Adding a strategy
+1. Write `evaluate_x(d) -> _result(match, score, signals, high_conviction, reasons)`
+   in `scan.py` (read only from the already-fetched `d`; if you need a new field,
+   add it to `fetch_ticker_data`).
+2. Add `{"name","emoji","evaluate","fires_claude"}` to `STRATEGIES`.
+3. Add display metadata: `STRATEGY_NTFY` in `notify.py` and `STRAT` in
+   `site/app.js`. That's it — report, dashboard, ntfy, and watchlist tagging
+   pick it up automatically.

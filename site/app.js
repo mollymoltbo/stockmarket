@@ -29,10 +29,12 @@ function sparkline(history, w = 90, h = 24) {
 
 function renderSummary(d) {
   const s = d.scan || {};
-  const troughTxt = s.n_trough > 0 ? ` · <span class="trough">${s.n_trough} 🔻 trough</span>` : "";
+  let alerts = "";
+  if (s.n_trough > 0) alerts += ` · <span class="trough">${s.n_trough} 🔻 trough</span>`;
+  if (s.n_momentum > 0) alerts += ` · <span class="momentum">${s.n_momentum} 🚀 momentum</span>`;
   $("summary").innerHTML =
     `<b>${esc(s.sector || "—")}</b> · ${esc(s.date || "")} · ` +
-    `scanned <b>${s.scanned ?? "?"}</b> · <b>${s.n_candidates ?? 0}</b> passed${troughTxt}` +
+    `scanned <b>${s.scanned ?? "?"}</b> · <b>${s.n_candidates ?? 0}</b> passed${alerts}` +
     ` · <b>${s.watchlist_size ?? 0}</b> tracked`;
 }
 
@@ -44,19 +46,37 @@ function renderVerdict(v) {
   $("verdict").innerHTML = v.html || "";
 }
 
+// Strategy display metadata (emoji + CSS class). Falls back gracefully for any
+// strategy added later without a mapping here.
+const STRAT = {
+  Trough: { emoji: "🔻", cls: "trough" },
+  Momentum: { emoji: "🚀", cls: "momentum" },
+};
+const sMeta = (name) => STRAT[name] || { emoji: "•", cls: "other" };
+
 function card(c) {
-  const reasons = c.trough_reasons?.length
-    ? `<div class="sig reasons">🔻 ${c.trough_reasons.map(esc).join("; ")}</div>` : "";
-  const signals = c.signals?.length
-    ? `<div class="sig">${c.signals.map(esc).join("; ")}</div>` : "";
+  const tags = c.tags || [];
+  const alerts = c.alerts || [];
+  // High-conviction badges, then plain tag chips for non-alert matches.
+  const badges = alerts.map((n) => `<span class="badge ${sMeta(n).cls}">${sMeta(n).emoji} ${esc(n.toUpperCase())}</span>`).join(" ");
+  const chips = tags.filter((n) => !alerts.includes(n))
+    .map((n) => `<span class="chip ${sMeta(n).cls}">${sMeta(n).emoji} ${esc(n)}</span>`).join(" ");
+  // One reasons line per strategy (high-conviction reasons, else signals).
+  const reasons = Object.entries(c.strategies || {}).map(([n, r]) => {
+    const detail = (r.conviction_reasons && r.conviction_reasons.length ? r.conviction_reasons : r.signals) || [];
+    if (!detail.length) return "";
+    const hc = r.high_conviction ? " is-hc" : "";
+    return `<div class="sig ${sMeta(n).cls}${hc}">${sMeta(n).emoji} <b>${esc(n)}:</b> ${detail.map(esc).join("; ")}</div>`;
+  }).join("");
   const row = (k, val) => `<div><span class="k">${k}</span><span>${val}</span></div>`;
-  return `<div class="card ${c.trough ? "is-trough" : ""}">
+  const cls = alerts.length ? "is-" + sMeta(alerts[0]).cls : "";
+  return `<div class="card ${cls}">
     <div class="top">
       <div><span class="sym">${esc(c.symbol)}</span> <span class="nm">${esc(c.name)}</span></div>
       <span class="stars">${stars(c.score)}</span>
     </div>
     <div class="nm">${esc(c.industry || "")}</div>
-    ${c.trough ? '<span class="badge">TROUGH SETUP</span>' : ""}
+    <div class="badges">${badges} ${chips}</div>
     <div class="grid">
       ${row("Price", fmtMoney(c.price))}
       ${row("Mkt cap", c.market_cap_bn != null ? "$" + c.market_cap_bn + "bn" : "N/A")}
@@ -69,14 +89,14 @@ function card(c) {
       ${row("Cash/Debt", `$${c.total_cash_bn}bn / $${c.total_debt_bn}bn`)}
       ${row("52w range", `$${c.week52_low}–$${c.week52_high}`)}
     </div>
-    ${reasons}${signals}
+    ${reasons}
   </div>`;
 }
 
 function renderCandidates(cands) {
   $("cand-count").textContent = `(${cands.length})`;
   if (!cands.length) { $("candidates").innerHTML = `<p class="empty">No candidates in the latest scan.</p>`; return; }
-  cands.sort((a, b) => (b.trough - a.trough) || (b.score - a.score) || ((b.pct_off_high || 0) - (a.pct_off_high || 0)));
+  cands.sort((a, b) => ((b.alerts?.length || 0) - (a.alerts?.length || 0)) || (b.score - a.score) || ((b.pct_off_high || 0) - (a.pct_off_high || 0)));
   $("candidates").innerHTML = cands.map(card).join("");
 }
 

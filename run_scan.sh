@@ -54,7 +54,18 @@ if [ "$SHOULD" = "True" ] || [ "$SHOULD" = "true" ]; then
   if [ -n "${CLAUDE_ROUTINE_ID:-}" ] && [ -n "${CLAUDE_ROUTINE_TOKEN:-}" ]; then
     echo "  trough found → firing Claude"
     TROUGH_CSV="$(read_json trough_symbols | tr -d '[]"\n ')"
-    PROSE="Trough setups detected in ${SECTOR} on ${SCAN_DATE}: ${TROUGH_CSV}. Read today's scan and each name's trajectory from the hub, decide cyclical recovery vs value trap, and post your verdict to the feed (see your instructions)."
+    # Web routines have no secure secret store, so we hand the routine everything
+    # it needs in the fire payload (the T480s is the trusted origin). The hub
+    # token only guards writes to public data — rotate it if it ever leaks.
+    PROSE="Trough setups detected in ${SECTOR} on ${SCAN_DATE}: ${TROUGH_CSV}.
+
+Config (from the trigger — do not echo the token in any output):
+HUB_URL=${SCANNER_API_URL}
+HUB_TOKEN=${SCANNER_API_TOKEN}
+NTFY_URL=${NTFY_SERVER}/${NTFY_REPORT_TOPIC}
+DASHBOARD_URL=${DASHBOARD_URL}
+
+Read today's scan and each name's trajectory from the hub (GET HUB_URL?action=state&name=scan and &name=watchlist — reads need no token). Decide cyclical-recovery vs value-trap per name, then POST your verdict to the feed (POST HUB_URL?action=message with header 'X-Auth: HUB_TOKEN', JSON {\"source\":\"claude\",\"kind\":\"verdict\",\"title\":...,\"body\":<markdown>}) and push a short alert to NTFY_URL with a Click header of DASHBOARD_URL. Follow your routine instructions for the analysis."
     PAYLOAD="$(python3 -c 'import json,sys;print(json.dumps({"text":sys.argv[1]}))' "$PROSE")"
     curl -s -X POST \
       -H "Authorization: Bearer ${CLAUDE_ROUTINE_TOKEN}" \

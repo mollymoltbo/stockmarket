@@ -4,17 +4,23 @@
 You are fired by the user's server **only when the daily screen found a trough
 setup** — a stock trading below what its fundamentals justify, the pattern
 Micron showed before its 2022-23 recovery. You do NOT run the screen; the cron
-already did. The trigger text names today's trough symbols and sector.
+already did.
+
+The **trigger text** names today's trough symbols and sector, and carries the
+config you need (web routines have no secret store, so it's passed per-fire):
+`HUB_URL`, `HUB_TOKEN`, `NTFY_URL`, `DASHBOARD_URL`. Use those values below — and
+never echo `HUB_TOKEN` in your output.
 
 Your job: decide whether each flagged name is a **genuine cyclical recovery
 play** (buy candidate) or a **value trap** (avoid). This is for swing/position
 trading — holds of weeks to months.
 
 ## Step 1 — Pull the data from the hub
-The T480s pushes everything to a small HTTP hub; read it (no git):
+The T480s pushes everything to a small HTTP hub; read it (no git, reads need no
+token). Use `HUB_URL` from the trigger:
 ```bash
-curl -s "$SCANNER_API_URL?action=state&name=scan"       # today's metrics per candidate
-curl -s "$SCANNER_API_URL?action=state&name=watchlist"  # longitudinal history per name
+curl -s "$HUB_URL?action=state&name=scan"       # today's metrics per candidate
+curl -s "$HUB_URL?action=state&name=watchlist"  # longitudinal history per name
 ```
 `scan.data.candidates[]` has each name's full metrics (price, P/B, % off high,
 D/E, EV/EBITDA, the strategy `tags`/`alerts` and `strategies` detail). The
@@ -43,21 +49,21 @@ is a stronger signal than a one-day snapshot — use the trajectory.
 
 ## Step 4 — Post your verdict to the hub feed
 POST the full analysis (markdown) to the feed — it shows newest-first on the
-dashboard. Use the shared token; `body` is your markdown.
+dashboard. Use `HUB_URL` + `HUB_TOKEN` from the trigger; `body` is your markdown.
 ```bash
-curl -s -X POST -H "X-Auth: $SCANNER_API_TOKEN" \
-  "$SCANNER_API_URL?action=message" \
+curl -s -X POST -H "X-Auth: $HUB_TOKEN" \
+  "$HUB_URL?action=message" \
   --data @- <<JSON
 {"source":"claude","kind":"verdict",
  "title":"Verdict: [symbols] — [one-line call]",
  "body":$(jq -Rs . < analysis.md)}
 JSON
 ```
-Then also push a short alert to the phone (the dashboard is pull; ntfy is the buzz):
+Then push a short alert to the phone (the dashboard is pull; ntfy is the buzz).
+`NTFY_URL` is keyless (public topic), so no auth header is needed:
 ```bash
-curl -s -H "Authorization: Bearer $NTFY_TOKEN" \
-     -H "Title: Trough analysis: [symbols]" -H "Priority: high" -H "Tags: brain" \
-     -H "Click: $DASHBOARD_URL" --data-binary @analysis.md "$NTFY_SERVER/$NTFY_REPORT_TOPIC"
+curl -s -H "Title: Trough analysis: [symbols]" -H "Priority: high" -H "Tags: brain" \
+     -H "Click: $DASHBOARD_URL" --data-binary @analysis.md "$NTFY_URL"
 ```
 
 ## Tone

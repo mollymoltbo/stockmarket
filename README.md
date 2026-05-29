@@ -158,8 +158,11 @@ Create at claude.ai/code/routines:
 - Repository: your repo (optional now — the routine reads/writes the hub, not git)
 - Trigger: **API only** — Add trigger → API → Generate token. Copy routine_id
   and token into .env (shown once).
-- Env vars on the routine: SCANNER_API_URL, SCANNER_API_TOKEN (to read state +
-  post its verdict), NTFY_SERVER, NTFY_TOKEN, NTFY_REPORT_TOPIC, DASHBOARD_URL.
+- **No env vars to set on the routine.** Web routines have no secure secret store
+  (Anthropic warns against putting secrets in that field), so `run_scan.sh`
+  passes everything the routine needs — `HUB_URL`, `HUB_TOKEN`, `NTFY_URL`,
+  `DASHBOARD_URL` — inside the fire payload. The hub token only guards writes to
+  public data; rotate it if it ever leaks.
 
 Endpoint (wired in run_scan.sh):
 ```

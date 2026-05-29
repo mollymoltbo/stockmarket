@@ -29,20 +29,28 @@ h2 { font-size: 16px; margin: 28px 0 12px; color: var(--muted); font-weight: 600
 .summary .momentum { color: var(--accent); font-weight: 700; }
 footer { color: var(--muted); font-size: 12px; padding: 30px 16px 40px; }
 
-/* Verdict */
-.verdict {
+/* Feed (the message log) */
+.feed { display: grid; gap: 10px; }
+.feed-item {
   background: var(--panel); border: 1px solid var(--border);
-  border-left: 3px solid var(--trough); border-radius: 10px; padding: 4px 18px;
+  border-left: 3px solid var(--border); border-radius: 10px; padding: 10px 16px;
 }
-.verdict h1, .verdict h2, .verdict h3 { color: var(--text); text-transform: none;
-  letter-spacing: 0; }
-.verdict table { border-collapse: collapse; width: 100%; margin: 12px 0; }
-.verdict th, .verdict td { border: 1px solid var(--border); padding: 6px 10px;
-  text-align: left; font-size: 14px; }
-.verdict th { background: var(--panel-2); }
-.verdict code, .raw-md { background: var(--panel-2); border-radius: 6px; }
-.raw-md { display: block; padding: 14px; overflow-x: auto; white-space: pre-wrap; }
-.meta { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
+.feed-item.kind-verdict { border-left-color: var(--trough); }
+.feed-item.kind-scan { border-left-color: var(--accent); }
+.feed-item.kind-note { border-left-color: var(--warn); }
+.feed-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.feed-head .fk { font-size: 15px; }
+.feed-meta { color: var(--muted); font-size: 12px; margin-left: auto; }
+.feed-body { font-size: 14px; }
+.feed-body h1, .feed-body h2, .feed-body h3 { color: var(--text); text-transform: none;
+  letter-spacing: 0; font-size: 15px; margin: 12px 0 6px; }
+.feed-body table { border-collapse: collapse; width: 100%; margin: 10px 0; }
+.feed-body th, .feed-body td { border: 1px solid var(--border); padding: 6px 10px;
+  text-align: left; font-size: 13px; }
+.feed-body th { background: var(--panel-2); }
+.feed-body code { background: var(--panel-2); border-radius: 6px; padding: 1px 5px; }
+.feed-body blockquote { border-left: 3px solid var(--border); margin: 8px 0;
+  padding-left: 12px; color: var(--muted); }
 
 /* Candidate cards */
 .cards { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }

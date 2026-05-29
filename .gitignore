@@ -2,3 +2,5 @@
 __pycache__/
 result.json
 site/data.json
+site/api_config.php
+scanner_data/

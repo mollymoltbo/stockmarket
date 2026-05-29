@@ -1,0 +1,13 @@
+<?php
+/**
+ * Copy to api_config.php (NEVER commit — it's gitignored) on zone.ee.
+ * Sets the shared write token and the storage directory.
+ */
+
+// Shared secret required in the X-Auth header for every POST. Use the same
+// value in the T480s .env (SCANNER_API_TOKEN) and the Claude routine env vars.
+$API_TOKEN = 'change-me-to-a-long-random-string';
+
+// Where the flat-file store lives. MUST be OUTSIDE the public web root so the
+// data can't be fetched over HTTP. Default below is one level above this file.
+$DATA_DIR = __DIR__ . '/../scanner_data';

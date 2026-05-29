@@ -27,23 +27,73 @@ function sparkline(history, w = 90, h = 24) {
   </svg>`;
 }
 
-function renderSummary(d) {
-  const s = d.scan || {};
+function renderSummary(s, wlCount) {
   let alerts = "";
   if (s.n_trough > 0) alerts += ` · <span class="trough">${s.n_trough} 🔻 trough</span>`;
   if (s.n_momentum > 0) alerts += ` · <span class="momentum">${s.n_momentum} 🚀 momentum</span>`;
   $("summary").innerHTML =
     `<b>${esc(s.sector || "—")}</b> · ${esc(s.date || "")} · ` +
     `scanned <b>${s.scanned ?? "?"}</b> · <b>${s.n_candidates ?? 0}</b> passed${alerts}` +
-    ` · <b>${s.watchlist_size ?? 0}</b> tracked`;
+    ` · <b>${wlCount}</b> tracked`;
 }
 
-function renderVerdict(v) {
-  if (!v) return;
-  $("verdict-section").hidden = false;
-  $("verdict-meta").textContent =
-    `from ${v.branch || "routine"}${v.committed_at ? " · " + v.committed_at.slice(0, 16).replace("T", " ") : ""}`;
-  $("verdict").innerHTML = v.html || "";
+// Compact markdown renderer for feed bodies (headings, bold/italic/code, lists,
+// tables, hr, blockquote, links). Posters may also send pre-rendered body_html.
+function md(src) {
+  if (!src) return "";
+  const inline = (s) => esc(s)
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/(^|[^*])\*([^*]+)\*/g, "$1<em>$2</em>")
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  const lines = src.replace(/\r/g, "").split("\n");
+  const out = [];
+  let para = [], list = null;
+  const flushPara = () => { if (para.length) { out.push(`<p>${inline(para.join(" "))}</p>`); para = []; } };
+  const flushList = () => { if (list) { out.push(`<${list.t}>${list.items.map((x) => `<li>${inline(x)}</li>`).join("")}</${list.t}>`); list = null; } };
+  const flush = () => { flushPara(); flushList(); };
+  for (let i = 0; i < lines.length; i++) {
+    const ln = lines[i];
+    let m;
+    if (/^\s*$/.test(ln)) { flush(); continue; }
+    if ((m = ln.match(/^(#{1,6})\s+(.*)$/))) { flush(); out.push(`<h${m[1].length}>${inline(m[2])}</h${m[1].length}>`); continue; }
+    if (/^\s*([-*_])\1{2,}\s*$/.test(ln)) { flush(); out.push("<hr>"); continue; }
+    // Table: header row + separator row of ---/:--
+    if (ln.includes("|") && i + 1 < lines.length && /^\s*\|?[\s:|-]*-[\s:|-]*\|?\s*$/.test(lines[i + 1])) {
+      flush();
+      const cells = (r) => r.replace(/^\s*\|/, "").replace(/\|\s*$/, "").split("|").map((c) => c.trim());
+      const head = cells(ln); i++;
+      const rows = [];
+      while (i + 1 < lines.length && lines[i + 1].includes("|")) { rows.push(cells(lines[++i])); }
+      out.push(`<table><thead><tr>${head.map((h) => `<th>${inline(h)}</th>`).join("")}</tr></thead><tbody>${
+        rows.map((r) => `<tr>${r.map((c) => `<td>${inline(c)}</td>`).join("")}</tr>`).join("")}</tbody></table>`);
+      continue;
+    }
+    if ((m = ln.match(/^\s*[-*]\s+(.*)$/))) { flushPara(); if (!list || list.t !== "ul") { flushList(); list = { t: "ul", items: [] }; } list.items.push(m[1]); continue; }
+    if ((m = ln.match(/^\s*\d+\.\s+(.*)$/))) { flushPara(); if (!list || list.t !== "ol") { flushList(); list = { t: "ol", items: [] }; } list.items.push(m[1]); continue; }
+    if ((m = ln.match(/^\s*>\s?(.*)$/))) { flush(); out.push(`<blockquote>${inline(m[1])}</blockquote>`); continue; }
+    para.push(ln.trim());
+  }
+  flush();
+  return out.join("\n");
+}
+
+const FEED_KIND = { scan: "📊", verdict: "🧠", note: "📝", alert: "🚨" };
+
+function renderFeed(feed) {
+  $("feed-count").textContent = `(${feed.length})`;
+  if (!feed.length) { $("feed").innerHTML = `<p class="empty">No feed entries yet.</p>`; return; }
+  $("feed").innerHTML = feed.map((m) => {
+    const emoji = FEED_KIND[m.kind] || "•";
+    const when = (m.ts || "").replace("T", " ").slice(0, 16);
+    const body = m.body_html ? m.body_html : md(m.body || "");
+    return `<article class="feed-item kind-${esc(m.kind)}">
+      <div class="feed-head"><span class="fk">${emoji}</span>
+        <b>${esc(m.title || "")}</b>
+        <span class="feed-meta">${esc(m.source || "")} · ${esc(when)}</span></div>
+      ${body ? `<div class="feed-body">${body}</div>` : ""}
+    </article>`;
+  }).join("");
 }
 
 // Strategy display metadata (emoji + CSS class). Falls back gracefully for any
@@ -116,18 +166,23 @@ function renderWatchlist(wl) {
   }).join("");
 }
 
+// API endpoint: same-origin api.php by default; override with ?api=<url>.
+const API = new URLSearchParams(location.search).get("api") || "api.php";
+
 async function main() {
   try {
-    const res = await fetch("data.json", { cache: "no-store" });
+    const res = await fetch(`${API}?action=all`, { cache: "no-store" });
     if (!res.ok) throw new Error("HTTP " + res.status);
     const d = await res.json();
-    renderSummary(d);
-    renderVerdict(d.verdict);
-    renderCandidates(d.candidates || []);
-    renderWatchlist(d.watchlist || {});
+    const scan = d.scan || {};
+    const watchlist = d.watchlist || {};
+    renderSummary(scan, Object.keys(watchlist).length);
+    renderFeed(d.feed || []);
+    renderCandidates(scan.candidates || []);
+    renderWatchlist(watchlist);
     $("generated").textContent = "Generated " + (d.generated_at || "").replace("T", " ");
   } catch (e) {
-    $("summary").innerHTML = `<span class="empty">Could not load data.json (${esc(e.message)}).</span>`;
+    $("summary").innerHTML = `<span class="empty">Could not load ${esc(API)} (${esc(e.message)}).</span>`;
   }
 }
 main();

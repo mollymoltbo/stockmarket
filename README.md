@@ -37,10 +37,11 @@ handful of real troughs reach Claude (the one rate-limited resource).
 - `nasdaq_screen.py` — Stage 1: Nasdaq sector screener (the universe source)
 - `scan.py`        — Stage 2: yfinance fetch + strategy registry + watchlist
 - `notify.py`      — one ntfy message per candidate (tagged by strategy)
-- `build_site.py`  — assemble `site/data.json` (scan + watchlist + verdict)
-- `site/`          — static dashboard (index.html, app.js, style.css)
-- `run_scan.sh`    — cron orchestrator: scan → git → publish → ntfy → conditional Claude
-- `publish.sh`     — rebuild `site/data.json` + rsync `site/` to the static host
+- `api_client.py`  — push scan results/state + feed events to the hub
+- `site/api.php`   — the hub: flat-file feed + state store (POST token-gated)
+- `site/`          — dashboard (index.html, app.js, style.css) — reads the hub
+- `run_scan.sh`    — cron orchestrator: scan → push hub → ntfy → conditional Claude
+- `publish.sh`     — deploy site/ assets to zone.ee (code deploy, not per-scan)
 - `routine_prompt.md` — Claude routine prompt
 - `.env.example`   — secrets template (copy to .env, never commit)
 - `requirements.txt`
@@ -66,32 +67,44 @@ Both run on the same daily weekday-rotation universe, so Momentum is
 sector-delayed (a mover is only caught on its sector's day). Giving Momentum its
 own daily all-sector "movers" universe is a future option.
 
-## The dashboard (zone.ee)
-A static site browses everything ntfy can't: candidate metric cards, each
-watchlist name's "% off high" trajectory as a sparkline, and the rendered Claude
-verdict. `build_site.py` merges `result.json` + `watchlist.json` + the latest
-verdict (auto-pulled from the `origin/claude/*` branch the routine pushes to)
-into `site/data.json`; the vanilla-JS frontend fetches and renders it — no build
-step, no server code, so it runs on plain static hosting.
-
-ntfy stays as the **push** layer; the dashboard is the **pull** layer. The scan
-notification deep-links to the dashboard via `DASHBOARD_URL` (ntfy `Click`).
-
-> **Public, no auth** — by choice. Anyone with the URL can read the verdicts.
-> Don't host anything you wouldn't publish.
-
-Deploy: set `ZONE_SSH_HOST` / `ZONE_SSH_USER` / `ZONE_SSH_PATH` (and optional
-`ZONE_SSH_PORT`, `DASHBOARD_URL`) in `.env`. `publish.sh` rsyncs over SSH (falls
-back to scp). zone.ee is PHP/Node + static — we use it purely as a static host;
-all compute stays on the T480s and the Anthropic cloud.
-
-**Verdict timing:** a trough fires Claude at the end of `run_scan.sh`; the cloud
-verdict lands minutes later. The same run's publish won't have it yet, so it
-shows on the next publish. To pull it sooner, add a refresh cron (publish only,
-no scan):
-```bash
-30 7 * * 1-5  /home/you/stock-scanner/publish.sh >> /home/you/stock-scanner/cron.log 2>&1
+## The hub (zone.ee) — one place everyone reads/writes
+`site/api.php` is a tiny PHP endpoint that replaces git as the data bridge.
+Every party POSTs to it (token-gated) and the dashboard + Claude routine read
+from it:
 ```
+T480s   --POST state(scan,watchlist) + feed event-->  api.php
+Claude  --GET  state(scan,watchlist)-->  api.php  --POST verdict to feed-->
+Browser --GET  ?action=all-->  api.php   (dashboard renders it live)
+Phone   <--ntfy push--  (the buzz; tap → opens the dashboard)
+```
+Two data shapes:
+- **feed** — append-only message log (`messages.ndjson`): scan events, Claude
+  verdicts, manual notes. Newest-first on the dashboard.
+- **state** — last-write-wins JSON blobs (`state_scan.json`, `state_watchlist.json`)
+  for the cards/sparklines and the routine's trajectory reads.
+
+**Storage is plain flat files** (no DB/extension), `flock`-guarded, kept in a
+directory **outside the web root** (`api_config.php` sets `$DATA_DIR`). Writes
+need the shared token in an `X-Auth` header; reads are open.
+
+Endpoints: `POST ?action=message` · `POST ?action=state&name=X` ·
+`GET ?action=feed|state&name=X|all|ping`. The vanilla-JS frontend fetches
+`?action=all` and renders feed (with a built-in markdown renderer), candidate
+cards, and watchlist sparklines — no build step.
+
+ntfy stays the **push** layer (phone buzz, deep-links via `DASHBOARD_URL`); the
+hub/dashboard is the **pull** layer. Git is now **code-only**.
+
+> **Public, no auth on reads** — by choice. Anyone with the URL can read the
+> feed/verdicts. Writes are token-gated. Don't post anything you wouldn't publish.
+
+Setup:
+1. `cp site/api_config.php.example site/api_config.php`, set a long random
+   `$API_TOKEN`, and ensure `$DATA_DIR` is outside the web root.
+2. Put the same token in `.env` as `SCANNER_API_TOKEN`, set `SCANNER_API_URL`,
+   and set both (plus `NTFY_*`, `DASHBOARD_URL`) on the Claude routine.
+3. `./publish.sh` to deploy `site/` (it never uploads `api_config.php`). Re-run
+   only when the site code changes — data flows through the hub, not publish.
 
 ## No fallback by design
 If the Nasdaq screener returns nothing (network, taxonomy drift), the run EXITS
@@ -118,6 +131,12 @@ chmod +x run_scan.sh
 ```bash
 python3 nasdaq_screen.py --sector Energy        # check the screener returns tickers
 python3 scan.py --screen --sector Energy --watchlist /tmp/t.json   # full stage 1+2
+# Hub smoke test (locally): serve site/, then push and read back
+cp site/api_config.php.example site/api_config.php   # set a test token + /tmp DATA_DIR
+php -S 127.0.0.1:8097 -t site &
+SCANNER_API_URL=http://127.0.0.1:8097/api.php SCANNER_API_TOKEN=<token> \
+  python3 api_client.py push --result result.json --watchlist watchlist.json
+curl -s 'http://127.0.0.1:8097/api.php?action=all' | python3 -m json.tool
 ./run_scan.sh                                   # full orchestration
 ```
 The Nasdaq screener is US-listed only (NYSE/Nasdaq/AMEX); the EU-exchange scope
@@ -136,10 +155,11 @@ claude.ai/code/routines redirects to a download page, enable it first.
 
 Create at claude.ai/code/routines:
 - Prompt: paste `routine_prompt.md`
-- Repository: your repo (read; the cron writes)
+- Repository: your repo (optional now — the routine reads/writes the hub, not git)
 - Trigger: **API only** — Add trigger → API → Generate token. Copy routine_id
   and token into .env (shown once).
-- Env vars on the routine: NTFY_SERVER, NTFY_TOKEN, NTFY_REPORT_TOPIC.
+- Env vars on the routine: SCANNER_API_URL, SCANNER_API_TOKEN (to read state +
+  post its verdict), NTFY_SERVER, NTFY_TOKEN, NTFY_REPORT_TOPIC, DASHBOARD_URL.
 
 Endpoint (wired in run_scan.sh):
 ```
@@ -150,9 +170,13 @@ Headers: Authorization: Bearer {token}
 Body:    {"text": "human-readable prose"}   ← NOT structured JSON
 ```
 
-## Why git
-The cron (T480s) WRITES watchlist.json; the Claude routine (Anthropic cloud)
-READS it for each name's trajectory. Two machines, one shared file → git bridges.
+## Why a hub (not git)
+The T480s WRITES results; the Claude routine (Anthropic cloud) READS each name's
+trajectory and WRITES its verdict; the dashboard READS everything. Earlier this
+rode on git (the cron committed `watchlist.json`, the routine pushed `analysis.md`
+to a `claude/*` branch — awkward to retrieve). The hub (`site/api.php`) replaces
+that with one HTTP endpoint everyone reads/writes. **Git is now code-only.** The
+T480s still keeps `watchlist.json` locally as the source of truth between runs.
 
 ## The Micron fix
 1. EV/EBITDA & fwd P/E only disqualify POSITIVE high values — negative

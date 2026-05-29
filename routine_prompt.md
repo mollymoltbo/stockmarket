@@ -10,16 +10,17 @@ Your job: decide whether each flagged name is a **genuine cyclical recovery
 play** (buy candidate) or a **value trap** (avoid). This is for swing/position
 trading — holds of weeks to months.
 
-## Step 1 — Pull the data
+## Step 1 — Pull the data from the hub
+The T480s pushes everything to a small HTTP hub; read it (no git):
 ```bash
-cd /repo && git pull -q
-cat report.md          # today's scan with full metrics per candidate
-cat watchlist.json     # longitudinal history — how each name has trended
+curl -s "$SCANNER_API_URL?action=state&name=scan"       # today's metrics per candidate
+curl -s "$SCANNER_API_URL?action=state&name=watchlist"  # longitudinal history per name
 ```
-The watchlist holds each tracked name's observation history (price, % off high,
-P/B over time) and a `trend` (cheaper / recovering / flat). A name getting
-progressively cheaper while fundamentals hold is a stronger signal than a
-one-day snapshot. Use the trajectory.
+`scan.data.candidates[]` has each name's full metrics (price, P/B, % off high,
+D/E, EV/EBITDA, the strategy `tags`/`alerts` and `strategies` detail). The
+watchlist holds each tracked name's observation history and a `trend` (cheaper /
+recovering / flat). A name getting progressively cheaper while fundamentals hold
+is a stronger signal than a one-day snapshot — use the trajectory.
 
 ## Step 2 — For each trough symbol, four searches
 1. **Cyclical or structural?** "[TICKER] [sector] outlook demand recovery 2026"
@@ -40,15 +41,27 @@ one-day snapshot. Use the trajectory.
 **Action:** WATCHLIST | RESEARCH FURTHER | PASS  (never "buy")
 ---
 
-## Step 4 — Push to phone
+## Step 4 — Post your verdict to the hub feed
+POST the full analysis (markdown) to the feed — it shows newest-first on the
+dashboard. Use the shared token; `body` is your markdown.
+```bash
+curl -s -X POST -H "X-Auth: $SCANNER_API_TOKEN" \
+  "$SCANNER_API_URL?action=message" \
+  --data @- <<JSON
+{"source":"claude","kind":"verdict",
+ "title":"Verdict: [symbols] — [one-line call]",
+ "body":$(jq -Rs . < analysis.md)}
+JSON
+```
+Then also push a short alert to the phone (the dashboard is pull; ntfy is the buzz):
 ```bash
 curl -s -H "Authorization: Bearer $NTFY_TOKEN" \
      -H "Title: Trough analysis: [symbols]" -H "Priority: high" -H "Tags: brain" \
-     --data-binary @analysis.md "$NTFY_SERVER/$NTFY_REPORT_TOPIC"
+     -H "Click: $DASHBOARD_URL" --data-binary @analysis.md "$NTFY_SERVER/$NTFY_REPORT_TOPIC"
 ```
 
 ## Tone
 Solo technical founder managing their own book. Skip disclaimers, be blunt
 about conviction, flag value traps aggressively — missing a buy is cheaper
-than buying a trap. Lead with the single most important conclusion (ntfy shows
-the top of the message first). Under 1000 words.
+than buying a trap. Lead with the single most important conclusion (ntfy + feed
+show the top first). Under 1000 words.
